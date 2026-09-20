@@ -1,59 +1,56 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import sum as spark_sum
 
 # 1. Start Spark
 spark = (
     SparkSession.builder
-    .appName("SOBDAF")
+    .appName("HDFS to Local MySQL")
     .master("local[*]")
     .getOrCreate()
 )
 
 spark.sparkContext.setLogLevel("ERROR")
 
-# 2. Define the five columns in the HDFS files
-schema = """
-    id INT,
-    product_id INT,
-    purchasing_price DOUBLE,
-    quantity DOUBLE,
-    stock_date TIMESTAMP
-"""
+try:
+    # 2. Define the columns in the HDFS files
+    schema = """
+        id INT,
+        product_id INT,
+        purchasing_price DOUBLE,
+        quantity DOUBLE,
+        stock_date TIMESTAMP
+    """
 
-# 3. Read comma-separated data from HDFS (no header)
-data = (
-    spark.read
-    .schema(schema)
-    .option("header", "false")
-    .option("timestampFormat", "yyyy-MM-dd HH:mm:ss.S")
-    .option("mode", "FAILFAST")
-    .csv("hdfs:///sobdaf/part*")
-)
+    # 3. Read all records from HDFS
+    data = (
+        spark.read
+        .schema(schema)
+        .option("header", "false")
+        .option("timestampFormat", "yyyy-MM-dd HH:mm:ss.S")
+        .option("mode", "FAILFAST")
+        .csv("hdfs:///sobdaf/part*")
+    )
 
-# 4. Calculate total quantity for each product
-result = data.groupBy("product_id").agg(
-    spark_sum("quantity").alias("total_quantity")
-)
+    data.show(5, truncate=False)
 
-result.show()
+    # 4. Insert all records into the existing local table
+    (
+        data.coalesce(1).write
+        .format("jdbc")
+        .option(
+            "url",
+            "jdbc:mysql://127.0.0.1:3306/dbtest"
+            "?useSSL=false&allowPublicKeyRetrieval=true"
+            "&serverTimezone=UTC"
+        )
+        .option("dbtable", "table_stock")
+        .option("user", "usertest")
+        .option("password", "Admin1111")
+        .option("driver", "com.mysql.cj.jdbc.Driver")
+        .mode("append")
+        .save()
+    )
 
-# 5. Save results to local MySQL
-result.coalesce(1).write.jdbc(
-    url=(
-        "jdbc:mysql://127.0.0.1:3306/dbtest"
-        "?useSSL=false&allowPublicKeyRetrieval=true"
-        "&serverTimezone=UTC"
-    ),
-    table="product_quantity",
-    mode="overwrite",
-    properties={
-        "user": "usertest",
-        "password": "Admin1111",
-        "driver": "com.mysql.cj.jdbc.Driver"
-    }
-)
+    print("Data saved successfully to dbtest.table_stock")
 
-print("Results saved to dbtest.product_quantity")
-
-# 6. Stop Spark
-spark.stop()
+finally:
+    spark.stop()
