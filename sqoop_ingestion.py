@@ -7,6 +7,7 @@ import time
 
 REMOTE_DB = "jdbc:mysql://69.175.69.34/sumrachna_hd"
 USERNAME = "sumrachna_hd"
+PASSWORD = "RootAdmin11!!"
 TABLE = "table_stock100"
 HDFS_TARGET = "/security_lab/s0"
 
@@ -18,7 +19,7 @@ command = [
     "sqoop", "import",
     "--connect", REMOTE_DB,
     "--username", USERNAME,
-    "-P",
+    "--password", PASSWORD,
     "--table", TABLE,
     "--target-dir", HDFS_TARGET,
     "--delete-target-dir"
